@@ -1,20 +1,79 @@
-# Mental Health Sentiment Analysis
+# Mental Health Text Classification — BiLSTM with Attention
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/JTunnessen/mental_health_analysis/blob/main/v2_Mental_Health_Sentiment_Analysis.ipynb)
+A bidirectional LSTM with an additive attention mechanism, trained to classify
+self-reported mental-health discourse from a public research corpus. Built as graduate
+coursework in Artificial Intelligence and Machine Learning at George Washington
+University.
 
-A multi-class text classifier that categorises mental health statements into diagnostic categories using a bidirectional-style 2-layer LSTM with an attention mechanism and pre-trained GloVe word embeddings.
+**Status:** Academic coursework · **License:** BigScience OpenRAIL-M · **Not a clinical tool**
 
 ---
 
-## Overview
+## ⚠️ Scope, Limitations, and Ethical Use
 
-Mental health screening at scale is constrained by the availability of trained clinicians. This project explores whether a lightweight RNN-based model can reliably classify free-text statements into clinically relevant sentiment/status categories (e.g. *Depression*, *Anxiety*, *Suicidal*, *Normal*, etc.), and provides token-level attention heatmaps to make predictions interpretable.
+**Read this before anything else in this repository.**
 
-The training pipeline uses two phases:
-1. **Phase 1** — frozen GloVe embeddings, higher learning rate (Adam, lr=0.001)
-2. **Phase 2 (fine-tuning)** — embeddings unfrozen, lower learning rate (Adam, lr=0.0001)
+This project exists to demonstrate sequence modeling and attention-based
+interpretability. It was built for a graduate course. It has no clinical standing of any
+kind.
 
-Early stopping is applied in both phases to prevent overfitting.
+### What this model is
+
+A multi-class text classifier trained on self-reported, community-sourced posts from a
+publicly available research dataset. Given a passage of text, it assigns a label drawn
+from that dataset's taxonomy.
+
+### What this model is not
+
+- It is **not** a screening instrument and it performs no screening.
+- It produces **no diagnosis**. Its outputs are dataset categories, not clinical
+  determinations. No clinician produced, reviewed, or validated the labels it learned
+  from, and none reviewed its outputs.
+- It has **not** been clinically validated, evaluated against any diagnostic standard, or
+  tested for safety in any applied setting.
+- It is **not** deployed, and it is not offered as a product or a service.
+
+### Label provenance
+
+The training labels are self-reported and community-sourced — derived from where and how
+people posted, not from assessment by a professional. Every claim about this model's
+performance inherits that limitation. Reported metrics describe agreement with those
+labels and nothing more. A model that agrees with the corpus is not a model that is right
+about a person.
+
+### Attention is not explanation
+
+The attention heatmaps show which tokens the model weighted. They do not establish why a
+prediction was made. Attention weights are a useful debugging surface and a poor
+justification; they must not be presented to any reviewer, auditor, or affected person as
+the reason for an outcome.
+
+### Known risks
+
+Models trained on social-media text encode the demographic, linguistic, and cultural skew
+of the population that produced it. Performance almost certainly varies across groups this
+corpus underrepresents, and in a mental-health context that variance lands on the people
+least likely to be served well. **No fairness or subgroup evaluation has been conducted.**
+
+
+### Do not use this to make decisions about people
+
+Not for triage, risk assessment, hiring, admissions, benefits adjudication, insurance,
+content moderation, or any other consequential determination about any real person. The
+license attached to this repository prohibits several of these uses explicitly.
+
+If you are considering an applied use, the work that has **not** been done here includes:
+clinical validation against a diagnostic standard, fairness and subgroup evaluation, IRB
+or equivalent ethical review, adversarial and robustness testing, and a documented
+human-oversight process with a named accountable reviewer.
+
+See [`MODEL_CARD.md`](MODEL_CARD.md) for the full governance treatment.
+
+### If you need help
+
+This repository is not a source of help. If you or someone you know is struggling, contact
+the **988 Suicide & Crisis Lifeline** (call or text **988** in the US) or your local
+emergency services.
 
 ---
 
@@ -22,13 +81,14 @@ Early stopping is applied in both phases to prevent overfitting.
 
 | Property | Detail |
 |---|---|
-| Source | [Sentiment Analysis for Mental Health](https://www.kaggle.com/datasets/suchintikasarkar/sentiment-analysis-for-mental-health) (Kaggle) |
+| Source | Sentiment Analysis for Mental Health (Kaggle) |
 | File | `Combined Data.csv` |
-| Input column | `statement` |
-| Target column | `status` |
-| Split | 70% train / 15% val / 15% test (stratified) |
+| Input column | `statement` — free text from social media and forum posts |
+| Target column | `status` — the corpus label taxonomy |
+| Split | 70% train / 15% validation / 15% test, stratified |
 
-The dataset contains real-world social-media and forum text labelled with mental health conditions. The number of target classes and exact class distribution are printed when the notebook is executed.
+The class distribution is imbalanced. This is why the *Results* section reports macro-F1
+rather than overall accuracy.
 
 ---
 
@@ -41,44 +101,52 @@ Input text
 Embedding layer  (300-d GloVe vectors, frozen in Phase 1)
     │
     ▼
-2-layer LSTM  (batch-first, dropout=0.5 between layers)
+2-layer bidirectional LSTM  (batch-first, dropout 0.5 between layers)
     │
     ▼
-Attention mechanism  (linear → softmax → weighted sum)
+Attention  (linear → softmax → weighted sum over encoder outputs)
     │
     ▼
 Dropout (0.5)
     │
     ▼
-Fully-connected layer → softmax → predicted class
+Fully connected → softmax → predicted class
 ```
 
-**Key hyperparameters**
+### Hyperparameters
 
 | Parameter | Value |
 |---|---|
 | Embedding dimension | 300 |
 | LSTM hidden dimension | configurable (`HIDDEN_DIM`) |
-| LSTM layers | 2 |
+| LSTM layers | 2, bidirectional |
 | Dropout | 0.5 |
-| Phase 1 optimizer | Adam, lr=0.001 |
-| Phase 2 optimizer | Adam, lr=0.0001, weight_decay=1e-5 |
+| Phase 1 optimizer | Adam, lr = 1e-3, embeddings frozen |
+| Phase 2 optimizer | Adam, lr = 1e-4, weight decay = 1e-5, embeddings fine-tuned |
 | Max gradient norm | configurable (`MAX_GRAD_NORM`) |
 | Early stopping patience | 3 epochs |
 
----
-
-## Features
-
-- **Multi-class classification** — handles all status categories present in the dataset
-- **GloVe embeddings** — 300-dimensional pre-trained vectors (dolma 2024 release); falls back to random initialisation if unavailable
-- **Two-phase training** — frozen then fine-tuned embeddings for improved generalisation
-- **Explainable AI** — token-level attention heatmaps via `plot_attention()` show which words drive each prediction
-- **Device-agnostic** — automatically selects CUDA, Apple MPS, or CPU
+**Two-phase training.** Phase 1 holds the GloVe embeddings frozen at a higher learning
+rate. Phase 2 unfreezes and fine-tunes at a lower rate with weight decay. Early stopping
+is applied in both phases.
 
 ---
 
-## Setup & Installation
+## Results
+
+| Metric | Phase 1 (frozen) | Phase 2 (fine-tuned) |
+|---|---|---|
+| Macro-F1 | — | — |
+| Weighted-F1 | — | — |
+| Accuracy | — | — |
+
+### Per-class performance
+
+| Class | Support | Precision | Recall | F1 |
+|---|---|---|---|---|
+| — | — | — | — | — |
+
+## Setup
 
 ### Requirements
 
@@ -93,105 +161,88 @@ seaborn
 kagglehub
 ```
 
-Install with pip:
-
 ```bash
 pip install torch pandas numpy scikit-learn matplotlib seaborn kagglehub
 ```
 
 ### Kaggle credentials
 
-`kagglehub` requires a Kaggle API token (`~/.kaggle/kaggle.json`). Obtain one from your [Kaggle account settings](https://www.kaggle.com/settings) and place it at the path above, or set the `KAGGLE_USERNAME` / `KAGGLE_KEY` environment variables.
+`kagglehub` requires a Kaggle API token at `~/.kaggle/kaggle.json`, or the
+`KAGGLE_USERNAME` / `KAGGLE_KEY` environment variables.
 
 ### GloVe embeddings
 
-The notebook downloads GloVe vectors automatically from Stanford NLP. If the download fails (e.g. network restrictions in Colab), the `simulate_glove_vectors()` fallback is used instead — training will still work but may produce lower accuracy.
+The notebook downloads GloVe vectors automatically. If the download fails — network
+restrictions in Colab are the usual cause — a random-initialization fallback is used
+instead. **Training still runs, but results degrade materially. Any run using the fallback
+should be labeled as such and not compared against a run with real embeddings.**
 
 ---
 
 ## Usage
 
-### Running in Google Colab (recommended)
+### Google Colab
 
-1. Click the **Open in Colab** badge at the top of this README.
-2. Ensure your Kaggle credentials are available (mount Google Drive or set env vars).
-3. Run all cells in order (`Runtime → Run all`).
+1. Open the notebook via the Colab badge.
+2. Make Kaggle credentials available.
+3. Runtime → Run all.
 
-### Running locally
+### Local
 
 ```bash
-git clone https://github.com/JTunnessen/mental_health_analysis.git
-cd mental_health_analysis
+git clone https://github.com/JTunnessen/Mental-Health-Analysis-LSTM-RNN-with-Attention.git
+cd Mental-Health-Analysis-LSTM-RNN-with-Attention
 pip install torch pandas numpy scikit-learn matplotlib seaborn kagglehub
 jupyter notebook v2_Mental_Health_Sentiment_Analysis.ipynb
 ```
 
 Run cells top to bottom. Training takes several minutes on CPU; a GPU is recommended.
 
-### Single-sentence inference
-
-After the notebook has been run, use `predict_sentiment()`:
+### Inference
 
 ```python
-label, confidence = predict_sentiment(
-    "I feel completely hopeless and I don't want to continue.",
-    model,
-    word_to_index,
-    index_to_label
-)
-print(f"{label}  ({confidence:.2%})")
+label, confidence = predict_sentiment("your text here")
 ```
 
-### Attention visualisation
-
-```python
-plot_attention(
-    "I can't sleep because I'm so worried about everything.",
-    viz_model,
-    word_to_index,
-    index_to_label
-)
-```
-
-This renders a heatmap showing the attention weight the model assigned to each token.
-
----
-
-## Project Structure
-
-```
-mental_health_analysis/
-└── v2_Mental_Health_Sentiment_Analysis.ipynb   # Main notebook
-```
-
-### Notebook cell overview
-
-| Cells | Purpose |
-|---|---|
-| 0–1 | Colab badge, title |
-| 2 | All imports + `evaluate_model`, `print_metrics`, `plot_confusion_matrix` helpers |
-| 3 | Data loading (kagglehub download, train/val/test split) |
-| 4 | Text cleaning (`clean_text_v2`), vocabulary, sequence padding, tensors |
-| 5 | GloVe utilities, `Attention`, `EarlyStopping`, `ClassificationRNN`, Phase 1 training |
-| 6–9 | Phase 1 evaluation: predictions, accuracy, classification report, confusion matrix |
-| 10–14 | Phase 2 fine-tuning + evaluation |
-| 15–16 | Real-world inference (`predict_sentiment`) |
-| 17–19 | Explainable AI: `ClassificationRNN_Viz`, `plot_attention` |
-
----
-
-## Model Performance
-
-Evaluation results are printed to the notebook output after each training phase. Look for:
-
-- **Overall Accuracy** — single-number summary
-- **Classification Report** — per-class precision, recall, and F1-score
-- **Confusion Matrix** — heatmap showing prediction distribution across classes
-
-Phase 2 results are labelled **(After Fine-Tuning)**.
+Outputs are corpus labels with a softmax confidence. They are not clinical assessments and
+must not be treated as such.
 
 ---
 
 ## License
 
-This project is released under the [MIT License](https://opensource.org/licenses/MIT).
+Released under the **BigScience OpenRAIL-M** license: free access, modification, and
+redistribution, subject to use-based restrictions that travel with the model and with any
+derivative of it.
+
+Those restrictions include prohibitions on using the model **to provide medical advice or
+medical results interpretation**, for **fully automated decision-making that adversely
+affects a person's legal rights**, and for uses that **discriminate against individuals on
+the basis of legally protected characteristics**. The full list is in Attachment A of the
+[`LICENSE`](LICENSE) file.
+
+Two things to be clear about:
+
+1. **OpenRAIL-M is not an OSI-approved open-source license.** Its behavioral restrictions
+   are incompatible with clause 6 of the Open Source Definition, and GitHub will show the
+   license as unrecognized. That is the intended trade-off — the restrictions are the
+   reason for the choice.
+2. **Earlier revisions of this README stated the MIT License**, though no `LICENSE` file
+   was present in the repository. To the extent anyone relied on that statement, this
+   change applies going forward and does not purport to revoke it.
+
+---
+
+## Citation
+
+```bibtex
+@misc{tunnessen2026mentalhealth,
+  author = {Tunnessen, James E.},
+  title  = {Mental Health Text Classification: A BiLSTM with Attention},
+  year   = {2025},
+  note   = {Graduate coursework, George Washington University
+            School of Engineering and Applied Science},
+  url    = {https://github.com/JTunnessen/Mental-Health-Analysis-LSTM-RNN-with-Attention}
+}
+```
+
