@@ -211,7 +211,7 @@ must not be treated as such.
 
 ## License
 
-Released under the **BigScience OpenRAIL-M** license: free access, modification, and
+Released under the **OpenRAIL-AMS** license: free access, modification, and
 redistribution, subject to use-based restrictions that travel with the model and with any
 derivative of it.
 
@@ -219,7 +219,7 @@ Those restrictions include prohibitions on using the model **to provide medical 
 medical results interpretation**, for **fully automated decision-making that adversely
 affects a person's legal rights**, and for uses that **discriminate against individuals on
 the basis of legally protected characteristics**. The full list is in Attachment A of the
-[`LICENSE`](LICENSE) file.
+[`LICENSE.md`](LICENSE) file.
 
 Two things to be clear about:
 
